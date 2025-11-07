@@ -1,0 +1,107 @@
+#Модуль кодирования данных для QR-кодов Реализует кодирование данных в соответствии со стандартом ISO/IEC 18004
+
+import math
+from typing import List
+from .qr_generator import ErrorCorrectionLevel
+
+class DataEncoder:
+    def __init__(self, version: int, error_correction: ErrorCorrectionLevel):
+        self.version = version
+        self.error_correction = error_correction
+        self.capacity = self._get_capacity()
+        
+    def _get_capacity(self) -> int:
+        
+        # Упрощенная таблица емкости (числовой режим)
+        capacities = {
+            (1, ErrorCorrectionLevel.L): 41,
+            (1, ErrorCorrectionLevel.M): 34,
+            (1, ErrorCorrectionLevel.Q): 27,
+            (1, ErrorCorrectionLevel.H): 17,
+            
+        }
+        return capacities.get((self.version, self.error_correction), 100)
+    
+    def encode(self, data: str) -> List[int]:
+       #Кодирование данных по стандарту QR-кода Вход:data: строка для кодирования Выход:список байтов в закодированном виде
+        # Выбор режима кодирования на основе входных данных
+        if data.isdigit():
+            return self._encode_numeric(data)
+        else:
+            return self._encode_byte(data)
+    
+    def _encode_numeric(self, data: str) -> List[int]:
+        
+        result = []
+        
+    
+        result.extend([0, 0, 0, 1])
+        
+        
+        count_bits = self._get_character_count_bits()
+        char_count = len(data)
+        result.extend(self._number_to_bits(char_count, count_bits))
+        
+        
+        i = 0
+        while i < len(data):
+            if i + 3 <= len(data):
+        
+                number = int(data[i:i+3])
+                result.extend(self._number_to_bits(number, 10))
+                i += 3
+            elif i + 2 <= len(data):
+                
+                number = int(data[i:i+2])
+                result.extend(self._number_to_bits(number, 7))
+                i += 2
+            else:
+                
+                number = int(data[i])
+                result.extend(self._number_to_bits(number, 4))
+                i += 1
+        
+        
+        result.extend([0, 0, 0, 0])
+        
+        
+        while len(result) < self.capacity:
+            result.extend([1, 1, 1, 0, 1, 1, 0, 0])  
+        
+        return result[:self.capacity]
+    
+    def _encode_byte(self, data: str) -> List[int]:
+       
+        result = []
+        
+        
+        result.extend([0, 1, 0, 0])
+        
+
+        count_bits = self._get_character_count_bits()
+        char_count = len(data.encode('utf-8'))
+        result.extend(self._number_to_bits(char_count, count_bits))
+        
+        
+        for byte in data.encode('utf-8'):
+            result.extend(self._number_to_bits(byte, 8))
+        
+        
+        result.extend([0, 0, 0, 0])
+        
+        
+        while len(result) < self.capacity:
+            result.extend([1, 1, 1, 0, 1, 1, 0, 0])
+        
+        return result[:self.capacity]
+    
+    def _get_character_count_bits(self) -> int:
+        
+        if 1 <= self.version <= 9:
+            return 10 if self.error_correction in [ErrorCorrectionLevel.L, ErrorCorrectionLevel.M] else 8
+        else:
+            return 12
+    
+    def _number_to_bits(self, number: int, bit_length: int) -> List[int]:
+    
+        return [int(bit) for bit in format(number, f'0{bit_length}b')]
