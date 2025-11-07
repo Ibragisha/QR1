@@ -1,0 +1,101 @@
+#1 Основной модуль библиотеки (qr_generator.py)
+
+import math
+from typing import List, Union
+from enum import Enum
+from .data_encoding import DataEncoder
+from .error_correction import ReedSolomon
+from .matrix_constructor import MatrixConstructor
+
+class ErrorCorrectionLevel(Enum):
+    L = 0  # 7% error correction
+    M = 1  # 15% error correction  
+    Q = 2  # 25% error correction
+    H = 3  # 30% error correction
+
+class QRCode:
+    def __init__(self, version: int = 1, error_correction: ErrorCorrectionLevel = ErrorCorrectionLevel.M):
+      
+#2 Инициализация генератора QR-кода
+#Аргументы:version: версия QR-кода (1-40),error_correction: уровень коррекции ошибок
+       
+        self.version = version
+        self.error_correction = error_correction
+        self.size = self._calculate_size()
+        
+    
+        self.encoder = DataEncoder(version, error_correction)
+        self.error_corrector = ReedSolomon()
+        self.matrix_constructor = MatrixConstructor(version)
+        
+    def _calculate_size(self) -> int:
+        """Calculate matrix size based on version"""
+        return (self.version - 1) * 4 + 21
+    
+    def generate(self, data: str) -> List[List[bool]]:
+        """
+        Generate QR code matrix from input data
+        
+        Args:
+            data: Input data to encode
+            
+        Returns:
+            2D matrix representing QR code (True=black, False=white)
+        """
+        # Кодирование данных
+        encoded_data = self.encoder.encode(data)
+        
+        # Кодирование коррекции ошибок
+        error_corrected_data = self.error_corrector.encode(
+            encoded_data, 
+            self.version, 
+            self.error_correction
+        )
+        
+        # Построение матрицы
+        qr_matrix = self.matrix_constructor.build_matrix(error_corrected_data)
+        
+        return qr_matrix
+    
+    def save_as_image(self, data: str, filename: str, scale: int = 10):
+        
+        #Сохранение QR-кода в формате PNG изображения
+        #Аргументы:data: Входные данные для кодирования,filename: Имя выходного файла,scale: Коэффициент масштабирования пикселей
+       
+        try:
+            from PIL import Image
+            
+            matrix = self.generate(data)
+            size = len(matrix)
+            
+            # Create image
+            img_size = size * scale
+            img = Image.new('RGB', (img_size, img_size), 'white')
+            pixels = img.load()
+            
+            # Draw QR code
+            for y in range(size):
+                for x in range(size):
+                    color = (0, 0, 0) if matrix[y][x] else (255, 255, 255)
+                    for dy in range(scale):
+                        for dx in range(scale):
+                            pixels[x * scale + dx, y * scale + dy] = color
+            
+            img.save(filename)
+            print(f"QR code saved as {filename}")
+            
+        except ImportError:
+            print("PIL/Pillow not available. Install with: pip install pillow")
+    
+    def print_ascii(self, data: str):
+        """
+        Print QR code as ASCII art
+        """
+        matrix = self.generate(data)
+        size = len(matrix)
+        
+        for y in range(size):
+            line = ""
+            for x in range(size):
+                line += "██" if matrix[y][x] else "  "
+            print(line)
