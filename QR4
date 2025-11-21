@@ -1,0 +1,128 @@
+#Модуль построения матрицы
+
+from typing import List
+
+class MatrixConstructor:
+    def __init__(self, version: int):
+        self.version = version
+        self.size = (version - 1) * 4 + 21
+        self.matrix = [[False] * self.size for _ in range(self.size)]
+    
+    def build_matrix(self, data: List[int]) -> List[List[bool]]:
+     
+        self._add_finder_patterns()
+        self._add_alignment_patterns()
+        self._add_timing_patterns()
+        self._add_dark_module()
+        self._add_format_info()
+        self._add_data(data)
+        self._apply_mask()
+        
+        return self.matrix
+    
+    def _add_finder_patterns(self):
+        
+        patterns_pos = [
+            (0, 0),  # Top-left
+            (self.size - 7, 0),  # Top-right
+            (0, self.size - 7)   # Bottom-left
+        ]
+        
+        for x, y in patterns_pos:
+            
+            for i in range(7):
+                for j in range(7):
+                    if i == 0 or i == 6 or j == 0 or j == 6:
+                        self.matrix[y + j][x + i] = True
+                    elif 2 <= i <= 4 and 2 <= j <= 4:
+                        self.matrix[y + j][x + i] = True
+                    else:
+                        self.matrix[y + j][x + i] = False
+    
+    def _add_alignment_patterns(self):
+        
+        if self.version == 1:
+            return
+        
+        
+        positions = self._get_alignment_positions()
+        
+        for x, y in positions:
+            
+            if (x < 9 and y < 9) or (x > self.size - 10 and y < 9) or (x < 9 and y > self.size - 10):
+                continue
+            
+            
+            for i in range(5):
+                for j in range(5):
+                    if i == 0 or i == 4 or j == 0 or j == 4:
+                        self.matrix[y + j - 2][x + i - 2] = True
+                    elif i == 2 and j == 2:
+                        self.matrix[y + j - 2][x + i - 2] = True
+                    else:
+                        self.matrix[y + j - 2][x + i - 2] = False
+    
+    def _get_alignment_positions(self) -> List[tuple]:
+        
+        if 2 <= self.version <= 6:
+            return [(self.size - 7, self.size - 7)]
+        else:
+            
+            return [(self.size - 9, self.size - 9)]
+    
+    def _add_timing_patterns(self):
+        
+        
+        for i in range(8, self.size - 8):
+            self.matrix[6][i] = (i % 2 == 0)
+        
+        
+        for i in range(8, self.size - 8):
+            self.matrix[i][6] = (i % 2 == 0)
+    
+    def _add_dark_module(self):
+        
+        self.matrix[4 * self.version + 9][8] = True
+    
+    def _add_format_info(self):
+        
+        format_info = [False] * 15
+        
+        
+        for i in range(15):
+            if i < 8:
+                self.matrix[8][i if i != 6 else 7] = format_info[i]
+            else:
+                self.matrix[14 - i][8] = format_info[i]
+    
+    def _add_data(self, data: List[int]):
+    
+        bit_index = 0
+        for y in range(self.size):
+            for x in range(self.size):
+                if not self._is_function_pattern(x, y) and bit_index < len(data):
+                    self.matrix[y][x] = bool(data[bit_index])
+                    bit_index += 1
+    
+    def _is_function_pattern(self, x: int, y: int) -> bool:
+        
+        if (x < 7 and y < 7) or (x > self.size - 8 and y < 7) or (x < 7 and y > self.size - 8):
+            return True
+        
+        
+        if x == 6 or y == 6:
+            return True
+        
+        
+        if (x < 9 and y < 9) or (x > self.size - 9 and y < 9) or (x < 9 and y > self.size - 9):
+            return True
+        
+        return False
+    
+    def _apply_mask(self):
+        
+        for y in range(self.size):
+            for x in range(self.size):
+                if not self._is_function_pattern(x, y):
+                    if (x + y) % 3 == 0:  
+                        self.matrix[y][x] = not self.matrix[y][x]

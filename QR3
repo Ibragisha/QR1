@@ -1,0 +1,106 @@
+#Модуль коррекции ошибок
+
+import math
+from typing import List
+from .qr_generator import ErrorCorrectionLevel
+
+class ReedSolomon:
+    
+    
+    GF_EXP = [1] * 512
+    GF_LOG = [0] * 256
+    
+    def __init__(self):
+        self._init_galois_field()
+    
+    def _init_galois_field(self):
+    
+        prim = 0x11d  
+        
+        x = 1
+        for i in range(255):
+            self.GF_EXP[i] = x
+            self.GF_LOG[x] = i
+            x <<= 1
+            if x & 0x100:
+                x ^= prim
+        
+        for i in range(255, 512):
+            self.GF_EXP[i] = self.GF_EXP[i - 255]
+    
+    def _gf_mult(self, x: int, y: int) -> int:
+        
+        if x == 0 or y == 0:
+            return 0
+        return self.GF_EXP[self.GF_LOG[x] + self.GF_LOG[y]]
+    
+    def _gf_poly_mult(self, p: List[int], q: List[int]) -> List[int]:
+        
+        result = [0] * (len(p) + len(q) - 1)
+        for j in range(len(q)):
+            for i in range(len(p)):
+                result[i + j] ^= self._gf_mult(p[i], q[j])
+        return result
+    
+    def _gf_poly_remainder(self, data: List[int], divisor: List[int]) -> List[int]:
+        
+        result = data.copy()
+        
+        for i in range(len(data) - (len(divisor) - 1)):
+            coef = result[i]
+            if coef != 0:
+                for j in range(1, len(divisor)):
+                    if divisor[j] != 0:
+                        result[i + j] ^= self._gf_mult(divisor[j], coef)
+        
+        return result[-(len(divisor) - 1):]
+    
+    def encode(self, data: List[int], version: int, error_correction: ErrorCorrectionLevel) -> List[int]:
+        
+        
+        ec_codewords = self._get_ec_codewords(version, error_correction)
+        
+        if ec_codewords == 0:
+            return data
+        
+        
+        data_bytes = []
+        for i in range(0, len(data), 8):
+            byte_str = ''.join(str(bit) for bit in data[i:i+8])
+            data_bytes.append(int(byte_str, 2))
+        
+    
+        generator = self._rs_generator_poly(ec_codewords)
+        
+        
+        message_poly = data_bytes + [0] * ec_codewords
+        remainder = self._gf_poly_remainder(message_poly, generator)
+        
+        
+        result_bits = data.copy()
+        for byte in remainder:
+            result_bits.extend(self._number_to_bits(byte, 8))
+        
+        return result_bits
+    
+    def _get_ec_codewords(self, version: int, error_correction: ErrorCorrectionLevel) -> int:
+        
+        
+        ec_table = {
+            (1, ErrorCorrectionLevel.L): 7,
+            (1, ErrorCorrectionLevel.M): 10,
+            (1, ErrorCorrectionLevel.Q): 13,
+            (1, ErrorCorrectionLevel.H): 17,
+        }
+        return ec_table.get((version, error_correction), 10)
+    
+    def _rs_generator_poly(self, degree: int) -> List[int]:
+        
+        generator = [1]
+        for i in range(degree):
+            generator = self._gf_poly_mult(generator, [1, self.GF_EXP[i]])
+        return generator
+    
+    def _number_to_bits(self, number: int, bit_length: int) -> List[int]:
+    
+        return [int(bit) for bit in format(number, f'0{bit_length}b')]
